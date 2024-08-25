@@ -106,6 +106,7 @@ class App(customtkinter.CTk):
         self.labelHilos.grid(row=7, column=0, padx=20, pady=(10, 0))
         self.entryHilos = customtkinter.CTkEntry(self.frameLateral)
         self.entryHilos.grid(row=8, column=0, padx=20, pady=(10, 10))
+        self.entryHilos.insert(0, "1")  # Valor por defecto de 1 hilo
 
         self.frameDeBarraDeProgreso = customtkinter.CTkFrame(self, fg_color="transparent")
         self.frameDeBarraDeProgreso.grid(row=6, column=1, padx=(20, 0), pady=(20, 0), sticky="nsew")
@@ -138,7 +139,13 @@ class App(customtkinter.CTk):
     def EjecutarProceso(self):
         if not self.ejecutando:
             self.ejecutando = True
-            cantidad_hilos = int(self.entryHilos.get()) if self.entryHilos.get().isdigit() else 1
+            try:
+                cantidad_hilos = int(self.entryHilos.get())
+                if cantidad_hilos < 1:
+                    cantidad_hilos = 1
+            except ValueError:
+                cantidad_hilos = 1
+            self.textbox.insert("end", f"Ejecutando con {cantidad_hilos} hilos\n")
             for _ in range(cantidad_hilos):
                 threading.Thread(target=self.simulacion_procesos, daemon=True).start()
 
