@@ -144,6 +144,7 @@ class App(customtkinter.CTk):
         if nueva_memoria.isdigit():
             self.memoria.limite = int(nueva_memoria)
             self.textbox.insert("end", f"Memoria ajustada a {nueva_memoria} unidades\n")
+            self.actualizar_interfaz()
 
     # Método para cambiar el algoritmo de planificación
     def cambiarAlgoritmo(self, algoritmo):
@@ -176,17 +177,19 @@ class App(customtkinter.CTk):
             if proceso_ejecutar and self.memoria.asignar_memoria(proceso_ejecutar):
                 proceso_ejecutar.estado = "Ejecutando"
                 self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} ejecutando con {proceso_ejecutar.memoria_requerida} unidades de memoria\n")
+                self.actualizar_interfaz()  # Actualiza y muestra el estado de la memoria
                 time.sleep(2)  # Simula el tiempo de ejecución
                 proceso_ejecutar.contador_programa += 1
                 proceso_ejecutar.estado = "Terminado"
                 proceso_ejecutar.tiempo_termino = time.time()
                 self.memoria.liberar_memoria(proceso_ejecutar)
                 self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} terminado y memoria liberada\n")
+                self.actualizar_interfaz()  # Actualiza y muestra el estado de la memoria
             else:
                 proceso_ejecutar.estado = "Bloqueado"
                 self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} bloqueado por falta de memoria\n")
+                self.actualizar_interfaz()  # Actualiza y muestra el estado de la memoria
 
-            self.actualizar_interfaz()
             pid += 1
             time.sleep(1)
 
