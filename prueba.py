@@ -2,6 +2,7 @@ import customtkinter
 import random
 import time
 import threading
+from queue import Queue
 
 customtkinter.set_appearance_mode("System")
 customtkinter.set_default_color_theme("Hades.json")
@@ -28,6 +29,38 @@ class Memoria:
 
     def liberar_memoria(self, pcb):
         self.usada -= pcb.memoria_requerida
+
+class Planificador:
+    def __init__(self, algoritmo="FCFS", quantum=1):
+        self.cola_listos = Queue()
+        self.algoritmo = algoritmo
+        self.quantum = quantum
+        self.procesos_bloqueados = []
+        self.procesos_pausados = []
+
+    def agregar_proceso(self, pcb):
+        self.cola_listos.put(pcb)
+
+    def obtener_siguiente_proceso(self):
+        if self.algoritmo == "FCFS":
+            return self.cola_listos.get() if not self.cola_listos.empty() else None
+        elif self.algoritmo == "SJN":
+            return self.obtener_sjn()
+        elif self.algoritmo == "RR":
+            return self.cola_listos.get() if not self.cola_listos.empty() else None
+
+    def obtener_sjn(self):
+        procesos = list(self.cola_listos.queue)
+        if procesos:
+            proceso_mas_corto = min(procesos, key=lambda p: p.memoria_requerida)
+            self.cola_listos.queue.remove(proceso_mas_corto)
+            return proceso_mas_corto
+        return None
+
+    def ejecutar_rr(self, pcb):
+        time.sleep(self.quantum)
+        pcb.contador_programa += 1
+        self.cola_listos.put(pcb)
 
 class App(customtkinter.CTk):
     def __init__(self):
@@ -57,23 +90,22 @@ class App(customtkinter.CTk):
         #Creamos un boton que permita interacción con el usuario para poder ingresar un cambio en la memoria predefinida
         self.cambiarMemoria = customtkinter.CTkButton(self.frameLateral, text="Cambiar Cantidad de Memoria", command=self.ingresoPorPantalla)
         self.cambiarMemoria.grid(row=2, column=0, padx=20, pady=10)
+        
         #Creamos un botón para parar la simulación
         self.pararSimulacion = customtkinter.CTkButton(self.frameLateral, text="Parar Simulación", command=self.parar_simulacion)
         self.pararSimulacion.grid(row=3, column=0, padx=20, pady=10)
         
-        #creamos un título y un menú para cambiar la apariencia de la pestaña
-        self.nombreApariencia = customtkinter.CTkLabel(self.frameLateral, text="Apariencia:", anchor="w")
-        self.nombreApariencia.grid(row=5, column=0, padx=20, pady=(10, 0))
-        self.menuDeApariencia = customtkinter.CTkOptionMenu(self.frameLateral, values=["Light", "Dark"],
-                                                                       command=self.cambiarApariencia)
-        self.menuDeApariencia.grid(row=6, column=0, padx=20, pady=(10, 10))
+        #Menú para seleccionar algoritmo de planificación
+        self.labelAlgoritmo = customtkinter.CTkLabel(self.frameLateral, text="Algoritmo de Planificación:", anchor="w")
+        self.labelAlgoritmo.grid(row=5, column=0, padx=20, pady=(10, 0))
+        self.menuAlgoritmo = customtkinter.CTkOptionMenu(self.frameLateral, values=["FCFS", "SJN", "RR"], command=self.cambiarAlgoritmo)
+        self.menuAlgoritmo.grid(row=6, column=0, padx=20, pady=(10, 10))
         
-        
-        self.etiquetaDeEscala = customtkinter.CTkLabel(self.frameLateral, text="Escala de la Interfaz:", anchor="w")
-        self.etiquetaDeEscala.grid(row=8, column=0, padx=20, pady=(10, 0))
-        self.menuDeescala = customtkinter.CTkOptionMenu(self.frameLateral, values=["80%", "90%", "100%", "110%", "120%"],
-                                                               command=self.cambiarEscala)
-        self.menuDeescala.grid(row=9, column=0, padx=20, pady=(10, 20))
+        #Campo para ingresar la cantidad de hilos
+        self.labelHilos = customtkinter.CTkLabel(self.frameLateral, text="Cantidad de Hilos:", anchor="w")
+        self.labelHilos.grid(row=7, column=0, padx=20, pady=(10, 0))
+        self.entryHilos = customtkinter.CTkEntry(self.frameLateral)
+        self.entryHilos.grid(row=8, column=0, padx=20, pady=(10, 10))
 
         self.frameDeBarraDeProgreso = customtkinter.CTkFrame(self, fg_color="transparent")
         self.frameDeBarraDeProgreso.grid(row=6, column=1, padx=(20, 0), pady=(20, 0), sticky="nsew")
@@ -88,6 +120,7 @@ class App(customtkinter.CTk):
 
         # Inicialización del simulador
         self.memoria = Memoria(1024)
+        self.planificador = Planificador()
         self.pcbs = []
         self.ejecutando = False
 
@@ -98,41 +131,37 @@ class App(customtkinter.CTk):
             self.memoria.limite = int(nueva_memoria)
             self.textbox.insert("end", f"Memoria ajustada a {nueva_memoria} unidades\n")
 
-    def cambiarApariencia(self, new_appearance_mode: str):
-        customtkinter.set_appearance_mode(new_appearance_mode)
-
-    def cambiarEscala(self, nuevaEscala: str):
-        Nuevo = int(nuevaEscala.replace("%", "")) / 100
-        customtkinter.set_widget_scaling(Nuevo)
+    def cambiarAlgoritmo(self, algoritmo):
+        self.planificador.algoritmo = algoritmo
+        self.textbox.insert("end", f"Algoritmo de planificación cambiado a {algoritmo}\n")
 
     def EjecutarProceso(self):
         if not self.ejecutando:
             self.ejecutando = True
-            threading.Thread(target=self.simulacion_procesos, daemon=True).start()
+            cantidad_hilos = int(self.entryHilos.get()) if self.entryHilos.get().isdigit() else 1
+            for _ in range(cantidad_hilos):
+                threading.Thread(target=self.simulacion_procesos, daemon=True).start()
 
     def simulacion_procesos(self):
         pid = 0
         while self.ejecutando:
             memoria_requerida = random.randint(10, 100)
             pcb = PCB(pid, memoria_requerida)
-            self.pcbs.append(pcb)
+            self.planificador.agregar_proceso(pcb)
 
-            if self.memoria.asignar_memoria(pcb):
-                pcb.estado = "Ejecutando"
-                self.textbox.insert("end", f"Proceso {pcb.pid} ejecutando con {pcb.memoria_requerida} unidades de memoria\n")
+            proceso_ejecutar = self.planificador.obtener_siguiente_proceso()
+            if proceso_ejecutar and self.memoria.asignar_memoria(proceso_ejecutar):
+                proceso_ejecutar.estado = "Ejecutando"
+                self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} ejecutando con {proceso_ejecutar.memoria_requerida} unidades de memoria\n")
+                time.sleep(2)  # Simula el tiempo de ejecución
+                proceso_ejecutar.contador_programa += 1
+                proceso_ejecutar.estado = "Terminado"
+                proceso_ejecutar.tiempo_termino = time.time()
+                self.memoria.liberar_memoria(proceso_ejecutar)
+                self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} terminado y memoria liberada\n")
             else:
-                pcb.estado = "Bloqueado"
-                self.textbox.insert("end", f"Proceso {pcb.pid} bloqueado por falta de memoria\n")
-
-            self.actualizar_interfaz()
-
-            time.sleep(random.randint(1, 3))
-            if pcb.estado == "Ejecutando":
-                pcb.contador_programa += 1
-                pcb.estado = "Terminado"
-                pcb.tiempo_termino = time.time()
-                self.memoria.liberar_memoria(pcb)
-                self.textbox.insert("end", f"Proceso {pcb.pid} terminado y memoria liberada\n")
+                proceso_ejecutar.estado = "Bloqueado"
+                self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} bloqueado por falta de memoria\n")
 
             self.actualizar_interfaz()
             pid += 1
