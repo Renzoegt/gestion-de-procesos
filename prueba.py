@@ -94,41 +94,65 @@ class App(customtkinter.CTk):
         self.logo = customtkinter.CTkLabel(self.frameLateral, text="Gestión de Memoria", font=customtkinter.CTkFont(size=20, weight="bold"))
         self.logo.grid(row=0, column=0, padx=20, pady=(20, 10))
         
+        #Creamos una vision de pestañas
+        self.vistaPestaña = customtkinter.CTkTabview(self, width=250)
+        self.vistaPestaña.grid(row=5, column=0, pady=(20, 0), sticky="nsew")
+        self.vistaPestaña.add("Ejecución")
+        self.vistaPestaña.add("Apariencia")
+        self.vistaPestaña.tab("Ejecución").grid_columnconfigure(0, weight=1)  # configure grid of individual tabs
+        self.vistaPestaña.tab("Apariencia").grid_columnconfigure(0, weight=1)
+        
         # Botón para iniciar la ejecución de un proceso
         self.botonProceso = customtkinter.CTkButton(self.frameLateral, text="Ejecutar un proceso", command=self.EjecutarProceso)
-        self.botonProceso.grid(row=1, column=0, padx=20, pady=10)
+        self.botonProceso.grid(row=1, column=0, padx=20, pady=10, sticky="ew") 
         
         # Botón para cambiar la cantidad de memoria disponible
         self.cambiarMemoria = customtkinter.CTkButton(self.frameLateral, text="Cambiar Cantidad de Memoria", command=self.ingresoPorPantalla)
-        self.cambiarMemoria.grid(row=2, column=0, padx=20, pady=10)
+        self.cambiarMemoria.grid(row=2, column=0, padx=20, pady=10, sticky="ew")
         
         # Botón para detener la simulación
         self.pararSimulacion = customtkinter.CTkButton(self.frameLateral, text="Parar Simulación", command=self.parar_simulacion)
-        self.pararSimulacion.grid(row=3, column=0, padx=20, pady=10)
+        self.pararSimulacion.grid(row=3, column=0, padx=20, pady=10, sticky="ew")
         
         # Menú para seleccionar el algoritmo de planificación
-        self.labelAlgoritmo = customtkinter.CTkLabel(self.frameLateral, text="Algoritmo de Planificación:", anchor="w")
+        self.labelAlgoritmo = customtkinter.CTkLabel(self.vistaPestaña.tab("Ejecución"), text="Algoritmo de Planificación:", anchor="w")
         self.labelAlgoritmo.grid(row=5, column=0, padx=20, pady=(10, 0))
-        self.menuAlgoritmo = customtkinter.CTkOptionMenu(self.frameLateral, values=["FCFS", "SJN", "RR"], command=self.cambiarAlgoritmo)
+        self.menuAlgoritmo = customtkinter.CTkOptionMenu(self.vistaPestaña.tab("Ejecución"), values=["FCFS", "SJN", "RR"], command=self.cambiarAlgoritmo)
         self.menuAlgoritmo.grid(row=6, column=0, padx=20, pady=(10, 10))
         
         # Campo de entrada para definir la cantidad de hilos
-        self.labelHilos = customtkinter.CTkLabel(self.frameLateral, text="Cantidad de Hilos:", anchor="w")
+        self.labelHilos = customtkinter.CTkLabel(self.vistaPestaña.tab("Ejecución"), text="Cantidad de Hilos:", anchor="w")
         self.labelHilos.grid(row=7, column=0, padx=20, pady=(10, 0))
-        self.entryHilos = customtkinter.CTkEntry(self.frameLateral)
+        self.entryHilos = customtkinter.CTkEntry(self.vistaPestaña.tab("Ejecución"))
         self.entryHilos.grid(row=8, column=0, padx=20, pady=(10, 10))
         self.entryHilos.insert(0, "1")  # Valor por defecto de 1 hilo
 
+        #creamos un título y un menú para cambiar la apariencia de la pestaña
+        self.etiquetaDeApariencia = customtkinter.CTkLabel(self.vistaPestaña.tab("Apariencia"), text="Modo:", anchor="w")
+        self.etiquetaDeApariencia.grid(row=0, column=0, padx=20, pady=(10, 0))
+        self.menuDeApariencia = customtkinter.CTkOptionMenu(self.vistaPestaña.tab("Apariencia"), 
+                                                            values=["Light", "Dark"],
+                                                            command=self.cambiarApariencia)
+        self.menuDeApariencia.grid(row=0, column=0, padx=20, pady=(10, 10))
+        
+        
+        self.etiquetaDeEscala = customtkinter.CTkLabel(self.vistaPestaña.tab("Apariencia"), text="Escala de la Interfaz:", anchor="w")
+        self.etiquetaDeEscala.grid(row=8, column=0, padx=20, pady=(10, 0))
+        self.menuDeescala = customtkinter.CTkOptionMenu(self.vistaPestaña.tab("Apariencia"), values=["80%", "90%", "100%", "110%", "120%"],
+                                                               command=self.cambiarEscala)
+        self.menuDeescala.grid(row=9, column=0, padx=20, pady=(10, 20))
+        self.menuDeescala.set("100%")
+        
         # Frame para la barra de progreso de uso de memoria
         self.frameDeBarraDeProgreso = customtkinter.CTkFrame(self, fg_color="transparent")
-        self.frameDeBarraDeProgreso.grid(row=6, column=1, padx=(20, 0), pady=(20, 0), sticky="nsew")
+        self.frameDeBarraDeProgreso.grid(row=5, column=1, padx=(20, 0), pady=(20, 0), sticky="ew")
         self.frameDeBarraDeProgreso.grid_columnconfigure(0, weight=1)
         self.frameDeBarraDeProgreso.grid_rowconfigure(4, weight=1)
         self.barraProgreso = customtkinter.CTkProgressBar(self.frameDeBarraDeProgreso)
-        self.barraProgreso.grid(row=1, column=0, padx=(20, 10), pady=(10, 10), sticky="ew")
+        self.barraProgreso.grid(row=1, column=0, padx=(20, 10), pady=(10, 10), sticky="nsew")
     
         # Espacio de texto para mostrar mensajes y el estado del sistema
-        self.textbox = customtkinter.CTkTextbox(self, width=250)
+        self.textbox = customtkinter.CTkTextbox(self, width=200, height=600)
         self.textbox.grid(row=0, column=1, padx=(2, 0), pady=(2, 0), sticky="nsew")
 
         # Inicialización de la simulación
@@ -146,6 +170,14 @@ class App(customtkinter.CTk):
             self.textbox.insert("end", f"Memoria ajustada a {nueva_memoria} unidades\n")
             self.actualizar_interfaz()
 
+    #Definimos las funciones para cambiar la interfaz
+    def cambiarEscala(self, nuevaEscala: str):
+        Nuevo = int(nuevaEscala.replace("%", "")) / 100
+        customtkinter.set_widget_scaling(Nuevo)
+        
+    def cambiarApariencia(self, new_appearance_mode: str):
+        customtkinter.set_appearance_mode(new_appearance_mode)
+        
     # Método para cambiar el algoritmo de planificación
     def cambiarAlgoritmo(self, algoritmo):
         self.planificador.algoritmo = algoritmo
