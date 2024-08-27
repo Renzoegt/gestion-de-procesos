@@ -10,13 +10,14 @@ customtkinter.set_default_color_theme("Hades.json")
 
 # Clase PCB (Process Control Block) que representa un proceso en el sistema
 class PCB:
-    def __init__(self, pid, memoria_requerida):
+    def __init__(self, pid, memoria_requerida, tiempo_limite):
         self.pid = pid  # Identificador único del proceso
-        self.estado = "Listo"  # Estado inicial del proceso
+        self.estado = "Nuevo"  # Estado inicial del proceso
         self.memoria_requerida = memoria_requerida  # Cantidad de memoria requerida por el proceso
         self.contador_programa = 0  # Contador de instrucciones ejecutadas
         self.tiempo_inicio = time.time()  # Tiempo de inicio del proceso
-        self.tiempo_termino = None  # Tiempo de término del proceso, inicialmente None
+        self.tiempo_limite = tiempo_limite  # Tiempo máximo de ejecución
+        self.tiempo_ejecucion = 0 # El tiempo que el proceso lleva en ejecución 
 
 # Clase Memoria que maneja la asignación y liberación de la memoria principal
 class Memoria:
@@ -27,6 +28,7 @@ class Memoria:
     # Método para asignar memoria a un proceso
     def asignar_memoria(self, pcb):
         if self.usada + pcb.memoria_requerida <= self.limite:
+            pcb.estado = "Listo" # Actualizar el estado del proceso
             self.usada += pcb.memoria_requerida  # Se asigna la memoria requerida
             return True
         return False
@@ -37,40 +39,64 @@ class Memoria:
 
 # Clase Planificador que maneja la planificación de procesos según el algoritmo seleccionado
 class Planificador:
-    def __init__(self, algoritmo="FCFS", quantum=1):
-        self.cola_listos = Queue()  # Cola de procesos listos
+    def __init__(self, algoritmo="FCFS", quantum=2):
+        self.listos = list()  # Lista de procesos listos
+        self.enEspera = list()  # Lista de procesos nuevos o en espera
         self.algoritmo = algoritmo  # Algoritmo de planificación seleccionado
-        self.quantum = quantum  # Quantum para el algoritmo Round Robin
-        self.procesos_bloqueados = []  # Lista de procesos bloqueados
-        self.procesos_pausados = []  # Lista de procesos pausados
+        self.quantum = quantum  # Quantum para el algoritmo Round Robin (en segundos)
+        self.enEjecucion = None # Proceso en ejecución
 
     # Método para agregar un proceso a la cola de listos
-    def agregar_proceso(self, pcb):
-        self.cola_listos.put(pcb)
+    def agregar_proceso(self, pcb, memoria_asignada):
+        if memoria_asignada == False:
+            self.enEspera.append(pcb)
+        else:
+            self.listos.append(pcb)
 
     # Método para obtener el siguiente proceso según el algoritmo de planificación
-    def obtener_siguiente_proceso(self):
+    def obtener_proceso(self):
+        global app
+        if self.algoritmo == "RR":
+            if self.enEjecucion != None:
+                if self.enEjecucion.tiempo_ejecucion < self.quantum: # Si el proceso no termina su ejecución dentro del quantum, se realiza un cambio de contexto
+                    return self.enEjecucion
+                if self.enEjecucion.tiempo_ejecucion > self.enEjecucion.tiempo_limite:
+                    self.enEjecucion.estado = "Terminado"
+                    app.memoria.liberar_memoria(self.enEjecucion)
+                else:
+                    self.enEjecucion.estado = "Listo" # Actualizamos el estado del antiguo proceso a ejecutar
+                    self.listos.append(self.enEjecucion) # Ponemos el proceso en la lista de procesos listos para ejecutarse
+        elif self.enEjecucion != None: # Si el proceso todavia no termino de ejecutarse, devolvemos el valor
+            if self.enEjecucion.tiempo_ejecucion < self.enEjecucion.tiempo_limite:
+                return self.enEjecucion
+            else:
+                self.enEjecucion.estado = "Terminado"
+
+        # Elegimos un nuevo proceso a ejecutar
         if self.algoritmo == "FCFS":
-            return self.cola_listos.get() if not self.cola_listos.empty() else None
+            self.enEjecucion = self.listos.pop(0) if not len(self.listos) == 0 else None
         elif self.algoritmo == "SJN":
-            return self.obtener_sjn()  # Obtener el proceso más corto
+            self.enEjecucion = self.obtener_sjn() # Obtener el proceso más corto
         elif self.algoritmo == "RR":
-            return self.cola_listos.get() if not self.cola_listos.empty() else None
+            self.enEjecucion = self.listos.pop(0) if not len(self.listos) == 0 else None
+        
+        if self.enEjecucion != None:
+            self.enEjecucion.estado = "En ejecución"
+        return self.enEjecucion
 
     # Método específico para el algoritmo SJN (Shortest Job Next)
     def obtener_sjn(self):
-        procesos = list(self.cola_listos.queue)
-        if procesos:
-            proceso_mas_corto = min(procesos, key=lambda p: p.memoria_requerida)
-            self.cola_listos.queue.remove(proceso_mas_corto)
+        if self.listos.count != 0:
+            proceso_mas_corto = min(self.listos, key=lambda p: p.tiempo_limite)
+            self.listos.remove(proceso_mas_corto)
             return proceso_mas_corto
         return None
 
-    # Método para ejecutar un proceso usando Round Robin
-    def ejecutar_rr(self, pcb):
-        time.sleep(self.quantum)
-        pcb.contador_programa += 1
-        self.cola_listos.put(pcb)
+    # # Método para ejecutar un proceso usando Round Robin
+    # def ejecutar_rr(self, pcb):
+    #     time.sleep(self.quantum)
+    #     pcb.contador_programa += 1
+    #     self.listos.put(pcb)
 
 # Clase principal de la aplicación, que maneja la interfaz gráfica y la simulación
 class App(customtkinter.CTk):
@@ -103,7 +129,7 @@ class App(customtkinter.CTk):
         self.vistaPestaña.tab("Apariencia").grid_columnconfigure(0, weight=1)
         
         # Botón para iniciar la ejecución de un proceso
-        self.botonProceso = customtkinter.CTkButton(self.frameLateral, text="Ejecutar un proceso", command=self.EjecutarProceso)
+        self.botonProceso = customtkinter.CTkButton(self.frameLateral, text="Iniciar simulación", command=self.EjecutarProceso)
         self.botonProceso.grid(row=1, column=0, padx=20, pady=10, sticky="ew") 
         
         # Botón para cambiar la cantidad de memoria disponible
@@ -134,7 +160,7 @@ class App(customtkinter.CTk):
                                                             values=["Light", "Dark"],
                                                             command=self.cambiarApariencia)
         self.menuDeApariencia.grid(row=0, column=0, padx=20, pady=(10, 10))
-        
+        self.menuDeApariencia.set("Dark")
         
         self.etiquetaDeEscala = customtkinter.CTkLabel(self.vistaPestaña.tab("Apariencia"), text="Escala de la Interfaz:", anchor="w")
         self.etiquetaDeEscala.grid(row=8, column=0, padx=20, pady=(10, 0))
@@ -194,36 +220,73 @@ class App(customtkinter.CTk):
             except ValueError:
                 cantidad_hilos = 1
             self.textbox.insert("end", f"Ejecutando con {cantidad_hilos} hilos\n")
+            self.crear_procesos(10) # Creamos 10 procesos
+            self.actualizar_interfaz()
+
             for _ in range(cantidad_hilos):
-                threading.Thread(target=self.simulacion_procesos, daemon=True).start()
+                threading.Thread(target=self.ejecutar_hilo, daemon=True).start()
+
+    def crear_procesos(self, cantidad):
+        global siguientePid
+        for _ in range(cantidad):
+            pcb = PCB(siguientePid, random.randint(10, 100), random.randint(1, 10))
+            memoria_asignada = self.memoria.asignar_memoria(pcb)
+            self.planificador.agregar_proceso(pcb, memoria_asignada)
+            self.textbox.insert("end", f"Se creó el proceso {pcb.pid} con {pcb.memoria_requerida}. Estado: {pcb.estado}. Tiempo: {pcb.tiempo_limite}\n")
+            siguientePid += 1
+
+    def ejecutar_hilo(self):
+        if self.ejecutando == False:
+            return
+
+        pcb = self.planificador.obtener_proceso()
+        if pcb == None:
+            self.ejecutando = False
+            self.textbox.insert("end", "No se encuentran más procesos en la cola. Simulación detenida.\n")
+            return
+        
+        self.textbox.insert("end", f"Ejecutando proceso {pcb.pid} ({pcb.estado})\n")
+
+        self.ejecutar_proceso(pcb)
+        self.actualizar_interfaz()
+
+        self.ejecutar_hilo()
+
+    def ejecutar_proceso(self, pcb):
+        time.sleep(1)
+        pcb.tiempo_ejecucion += 1
+
+        if pcb.tiempo_ejecucion >= pcb.tiempo_limite: # Proceso terminado
+            pcb.estado = "Terminado"
+            self.memoria.liberar_memoria(pcb)
 
     # Método que simula la ejecución de procesos en base al algoritmo de planificación
-    def simulacion_procesos(self):
-        pid = 0
-        while self.ejecutando:
-            memoria_requerida = random.randint(10, 100)
-            pcb = PCB(pid, memoria_requerida)
-            self.planificador.agregar_proceso(pcb)
+    # def simulacion_procesos(self):
+    #     pid = 0
+    #     while self.ejecutando:
+    #         memoria_requerida = random.randint(10, 100)
+    #         pcb = PCB(pid, memoria_requerida)
+    #         self.planificador.agregar_proceso(pcb)
 
-            proceso_ejecutar = self.planificador.obtener_siguiente_proceso()
-            if proceso_ejecutar and self.memoria.asignar_memoria(proceso_ejecutar):
-                proceso_ejecutar.estado = "Ejecutando"
-                self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} ejecutando con {proceso_ejecutar.memoria_requerida} unidades de memoria\n")
-                self.actualizar_interfaz()  # Actualiza y muestra el estado de la memoria
-                time.sleep(2)  # Simula el tiempo de ejecución
-                proceso_ejecutar.contador_programa += 1
-                proceso_ejecutar.estado = "Terminado"
-                proceso_ejecutar.tiempo_termino = time.time()
-                self.memoria.liberar_memoria(proceso_ejecutar)
-                self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} terminado y memoria liberada\n")
-                self.actualizar_interfaz()  # Actualiza y muestra el estado de la memoria
-            else:
-                proceso_ejecutar.estado = "Bloqueado"
-                self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} bloqueado por falta de memoria\n")
-                self.actualizar_interfaz()  # Actualiza y muestra el estado de la memoria
+    #         proceso_ejecutar = self.planificador.obtener_siguiente_proceso()
+    #         if proceso_ejecutar and self.memoria.asignar_memoria(proceso_ejecutar):
+    #             proceso_ejecutar.estado = "Ejecutando"
+    #             self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} ejecutando con {proceso_ejecutar.memoria_requerida} unidades de memoria\n")
+    #             self.actualizar_interfaz()  # Actualiza y muestra el estado de la memoria
+    #             time.sleep(2)  # Simula el tiempo de ejecución
+    #             proceso_ejecutar.contador_programa += 1
+    #             proceso_ejecutar.estado = "Terminado"
+    #             proceso_ejecutar.tiempo_termino = time.time()
+    #             self.memoria.liberar_memoria(proceso_ejecutar)
+    #             self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} terminado y memoria liberada\n")
+    #             self.actualizar_interfaz()  # Actualiza y muestra el estado de la memoria
+    #         else:
+    #             proceso_ejecutar.estado = "Bloqueado"
+    #             self.textbox.insert("end", f"Proceso {proceso_ejecutar.pid} bloqueado por falta de memoria\n")
+    #             self.actualizar_interfaz()  # Actualiza y muestra el estado de la memoria
 
-            pid += 1
-            time.sleep(1)
+    #         pid += 1
+    #         time.sleep(1)
 
     # Método para detener la simulación
     def parar_simulacion(self):
@@ -235,7 +298,9 @@ class App(customtkinter.CTk):
         self.barraProgreso.set(self.memoria.usada / self.memoria.limite)
         self.textbox.insert("end", f"Memoria usada: {self.memoria.usada}/{self.memoria.limite}\n")
 
+siguientePid = 0 # Global
+app = App()
+
 # Punto de entrada de la aplicación
 if __name__ == "__main__":
-    app = App()
     app.mainloop()
