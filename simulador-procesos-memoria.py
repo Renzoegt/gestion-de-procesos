@@ -87,7 +87,7 @@ class Planificador:
 
     # Método específico para el algoritmo SJN (Shortest Job Next)
     def obtener_sjn(self):
-        if self.listos.count != 0:
+        if len(self.listos) != 0:
             proceso_mas_corto = min(self.listos, key=lambda p: p.tiempo_limite)
             self.listos.remove(proceso_mas_corto)
             return proceso_mas_corto
