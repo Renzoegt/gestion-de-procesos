@@ -35,6 +35,9 @@ class Memoria:
 
     # Método para liberar la memoria cuando un proceso termina
     def liberar_memoria(self, pcb):
+        if pcb.estado == "Terminado":
+            return
+        
         self.usada -= pcb.memoria_requerida  # Se libera la memoria usada por el proceso
 
 # Clase Planificador que maneja la planificación de procesos según el algoritmo seleccionado
@@ -61,16 +64,14 @@ class Planificador:
                 if self.enEjecucion.tiempo_ejecucion < self.quantum: # Si el proceso no termina su ejecución dentro del quantum, se realiza un cambio de contexto
                     return self.enEjecucion
                 if self.enEjecucion.tiempo_ejecucion > self.enEjecucion.tiempo_limite:
-                    self.enEjecucion.estado = "Terminado"
                     app.memoria.liberar_memoria(self.enEjecucion)
+                    self.enEjecucion.estado = "Terminado"
                 else:
                     self.enEjecucion.estado = "Listo" # Actualizamos el estado del antiguo proceso a ejecutar
                     self.listos.append(self.enEjecucion) # Ponemos el proceso en la lista de procesos listos para ejecutarse
         elif self.enEjecucion != None: # Si el proceso todavia no termino de ejecutarse, devolvemos el valor
             if self.enEjecucion.tiempo_ejecucion < self.enEjecucion.tiempo_limite:
                 return self.enEjecucion
-            else:
-                self.enEjecucion.estado = "Terminado"
 
         # Elegimos un nuevo proceso a ejecutar
         if self.algoritmo == "FCFS":
@@ -235,7 +236,7 @@ class App(customtkinter.CTk):
             self.textbox.insert("end", f"Se creó el proceso {pcb.pid} con {pcb.memoria_requerida}. Estado: {pcb.estado}. Tiempo: {pcb.tiempo_limite}\n")
             siguientePid += 1
 
-    def ejecutar_hilo(self):
+    def ejecutar_hilo(self): # Función ejecutada por cada hilo
         if self.ejecutando == False:
             return
 
@@ -257,8 +258,8 @@ class App(customtkinter.CTk):
         pcb.tiempo_ejecucion += 1
 
         if pcb.tiempo_ejecucion >= pcb.tiempo_limite: # Proceso terminado
-            pcb.estado = "Terminado"
             self.memoria.liberar_memoria(pcb)
+            pcb.estado = "Terminado"
 
     # Método que simula la ejecución de procesos en base al algoritmo de planificación
     # def simulacion_procesos(self):
